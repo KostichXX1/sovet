@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; connect-src 'self' https://api.groq.com https://generativelanguage.googleapis.com https://api.mistral.ai https://openrouter.ai https://api.deepseek.com https://api.anthropic.com">
+  <meta name="referrer" content="no-referrer">
+  <title>Совет</title>
+  <meta name="description" content="Несколько ИИ обсуждают ваш вопрос и выдают общее решение">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Совет">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#E9EEE7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1C18" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Совет</h1>
+    <nav class="top-actions">
+      <button id="open-history" class="text-button" type="button">История</button>
+      <button id="open-settings" class="text-button" type="button">Настройки</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="install-note" class="note" hidden>
+      <p>Сначала установите приложение: в Safari нажмите «Поделиться», затем «На экран “Домой”». Ключи вводите уже в установленном приложении, потому что ключи из Safari туда не перейдут.</p>
+    </div>
+
+    <form id="composer" class="composer">
+      <label class="visually-hidden" for="question">Ваш вопрос</label>
+      <textarea id="question" rows="4" placeholder="О чём спросить совет?" enterkeyhint="enter"></textarea>
+      <ul id="attachments" class="attachments" hidden></ul>
+      <div class="composer-tools">
+        <label class="tool-button" for="file-input">Добавить файл</label>
+        <input id="file-input" class="visually-hidden" type="file" multiple accept="image/*,.pdf,.xlsx,.xlsm,.docx,.txt,.csv,.md">
+        <button id="toggle-roles" class="tool-button" type="button" aria-pressed="false">Роли выключены</button>
+      </div>
+      <div id="seats" class="seats" role="group" aria-label="Кто участвует"></div>
+      <p id="composer-hint" class="hint" role="status"></p>
+      <button id="ask" class="primary" type="submit">Спросить совет</button>
+      <button id="stop" class="secondary" type="button" hidden>Остановить</button>
+    </form>
+
+    <section id="result" class="result"></section>
+  </main>
+
+  <dialog id="settings" class="sheet">
+    <div class="sheet-head">
+      <h2>Настройки</h2>
+      <button class="text-button" type="button" data-close>Готово</button>
+    </div>
+    <div class="sheet-body">
+      <h3 class="first">Ключи сервисов</h3>
+      <p class="sheet-intro">Ключи хранятся только на этом телефоне и отправляются только в свой сервис.</p>
+      <div id="provider-list"></div>
+
+      <h3>Участники</h3>
+      <p class="sheet-intro">За стол садятся те, у кого есть ключ сервиса и кто включён здесь или на главном экране.</p>
+      <div id="seat-list"></div>
+      <button id="check-keys" class="secondary" type="button">Проверить участников</button>
+      <details class="add-seat">
+        <summary>Добавить участника</summary>
+        <div class="add-seat-body">
+          <div class="field">
+            <label for="add-provider">Сервис</label>
+            <select id="add-provider"></select>
+          </div>
+          <div class="field">
+            <label for="add-model">Модель</label>
+            <input id="add-model" type="text" list="model-options" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <datalist id="model-options"></datalist>
+          </div>
+          <button id="load-models" class="secondary" type="button">Показать модели сервиса</button>
+          <p id="models-status" class="sheet-intro" role="status"></p>
+          <button id="add-seat" class="secondary" type="button">Добавить участника</button>
+        </div>
+      </details>
+
+      <h3>Как проходит совет</h3>
+      <div class="field">
+        <label for="mode">Порядок</label>
+        <select id="mode">
+          <option value="full">С обсуждением и голосованием</option>
+          <option value="quick">Быстро: ответы и итог</option>
+        </select>
+      </div>
+      <label class="switch-row" for="revise">
+        <input id="revise" type="checkbox">
+        <span>Исправлять итог после возражений и голосовать ещё раз</span>
+      </label>
+      <div class="field">
+        <label for="chair">Кто пишет итог</label>
+        <select id="chair"></select>
+      </div>
+
+      <h3>Лимиты на сегодня</h3>
+      <p class="sheet-intro">Сервисы почти не сообщают остаток, поэтому здесь в основном подсчёт самого приложения. Он примерный.</p>
+      <div id="usage-list" class="usage-list"></div>
+      <div class="field">
+        <label for="openrouter-limit">Лимит OpenRouter в день</label>
+        <input id="openrouter-limit" type="number" inputmode="numeric" min="1" placeholder="50">
+      </div>
+
+      <h3>Данные</h3>
+      <p class="sheet-intro">Бесплатные тарифы могут использовать ваши вопросы и файлы для обучения моделей. Рабочие цифры и личные данные лучше туда не отправлять.</p>
+      <button id="clear-history" class="secondary" type="button">Удалить историю</button>
+      <button id="clear-keys" class="secondary danger" type="button">Удалить все ключи</button>
+    </div>
+  </dialog>
+
+  <dialog id="history" class="sheet">
+    <div class="sheet-head">
+      <h2>История</h2>
+      <button class="text-button" type="button" data-close>Готово</button>
+    </div>
+    <div id="history-list" class="sheet-body"></div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
